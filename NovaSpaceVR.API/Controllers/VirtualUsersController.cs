@@ -48,6 +48,19 @@ public class VirtualUsersController : ControllerBase
         return Ok(virtualUser);
     }
 
+    [HttpGet("organization/{organizationName}/code/{userCode}")]
+    public async Task<ActionResult<VirtualUserDto>> GetVirtualUserByCode(string organizationName, string userCode)
+    {
+        var virtualUser = await _virtualUserService.GetByOrganizationAndCodeAsync(organizationName, userCode);
+        
+        if (virtualUser == null)
+        {
+            return NotFound();
+        }
+
+        return Ok(virtualUser);
+    }
+
     [HttpPost]
     public async Task<ActionResult<VirtualUserDto>> CreateVirtualUser([FromBody] CreateVirtualUserDto createVirtualUserDto)
     {

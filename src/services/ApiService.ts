@@ -27,11 +27,29 @@ class ApiService {
         throw new Error('Unauthorized');
       }
       
-      const errorData = await response.json().catch(() => ({ message: 'An error occurred' }));
-      throw new Error(errorData.message || `HTTP ${response.status}`);
+      let errorMessage = `HTTP ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorData.title || errorMessage;
+      } catch (parseError) {
+        // If response is not JSON, try to get text
+        try {
+          const errorText = await response.text();
+          errorMessage = errorText || errorMessage;
+        } catch (textError) {
+          console.error('Failed to parse error response:', parseError, textError);
+        }
+      }
+      
+      throw new Error(errorMessage);
     }
 
-    return response.json();
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return response.json();
+    } else {
+      return response.text() as any;
+    }
   }
 
   setToken(token: string): void {
@@ -257,6 +275,31 @@ class ApiService {
     });
 
     return this.handleResponse(response);
+  }
+
+  async getVirtualUserById(id: string) {
+    const response = await fetch(`${this.baseURL}/virtualusers/${id}`, {
+      headers: this.getHeaders(),
+    });
+
+    return this.handleResponse(response);
+  }
+
+  async getVirtualUserByCode(organizationName: string, userCode: string) {
+    try {
+      const response = await fetch(`${this.baseURL}/virtualusers/organization/${encodeURIComponent(organizationName)}/code/${encodeURIComponent(userCode)}`, {
+        headers: this.getHeaders(),
+      });
+
+      if (response.status === 404) {
+        return null; // Virtual user not found
+      }
+
+      return this.handleResponse(response);
+    } catch (error) {
+      console.error('Error fetching virtual user by code:', error);
+      return null;
+    }
   }
 
   async createVirtualUser(userData: any) {

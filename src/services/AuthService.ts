@@ -112,10 +112,18 @@ class AuthService {
     }
   }
 
-  async verifyVirtualUserOtp(email: string, code: string): Promise<{ success: boolean; message: string }> {
+  async verifyVirtualUserOtp(email: string, code: string): Promise<{ success: boolean; message: string; user?: User; token?: string }> {
     try {
-      await ApiService.verifyVirtualUserOtp(email, code);
-      return { success: true, message: 'Virtual user verified successfully' };
+      const response = await ApiService.verifyVirtualUserOtp(email, code) as any;
+      
+      if (response.success && response.token && response.user) {
+        // Set the token for future API calls
+        ApiService.setToken(response.token);
+        this.saveUserToStorage(response.user);
+        return { success: true, message: response.message, user: response.user, token: response.token };
+      }
+      
+      return { success: false, message: response.message || 'OTP verification failed' };
     } catch (error) {
       return { success: false, message: error instanceof Error ? error.message : 'OTP verification failed' };
     }
@@ -124,6 +132,17 @@ class AuthService {
   logout(): void {
     ApiService.clearAuth();
     this.currentUser = null;
+    // Also clear virtual user data for security
+    localStorage.removeItem('virtualUserData');
+  }
+
+  logoutVirtualUser(): void {
+    // Clear authentication token
+    ApiService.clearAuth();
+    // Clear virtual user data
+    localStorage.removeItem('virtualUserData');
+    // Clear any other auth-related data
+    localStorage.removeItem('authToken');
   }
 
   getCurrentUser(): User | null {
@@ -132,6 +151,24 @@ class AuthService {
 
   isAuthenticated(): boolean {
     return this.currentUser !== null && localStorage.getItem('authToken') !== null;
+  }
+
+  isVirtualUserAuthenticated(): boolean {
+    const virtualUserData = localStorage.getItem('virtualUserData');
+    const authToken = localStorage.getItem('authToken');
+    
+    if (!virtualUserData || !authToken) {
+      return false;
+    }
+    
+    try {
+      const userData = JSON.parse(virtualUserData);
+      // Check if the user data has authentication flag and valid token exists
+      return userData.isAuthenticated === true && authToken !== null;
+    } catch (error) {
+      console.error('Error parsing virtual user data:', error);
+      return false;
+    }
   }
 
   isAdmin(): boolean {

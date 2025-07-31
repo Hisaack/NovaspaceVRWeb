@@ -99,7 +99,10 @@ const Login: React.FC = () => {
           localStorage.setItem('virtualUserData', JSON.stringify({
             userCode: formData.userCode,
             organizationName: formData.organizationName,
-            email: result.virtualUserEmail
+            email: result.virtualUserEmail,
+            stage: 'Beginner', // Default stage
+            dateAdded: new Date().toISOString().split('T')[0],
+            isAuthenticated: false // Will be set to true after OTP verification
           }));
           setShowOTPModal(true);
         } else {
@@ -132,8 +135,29 @@ const Login: React.FC = () => {
         const result = await AuthService.verifyVirtualUserOtp(virtualUserEmail, code);
         
         if (result.success) {
-          // Navigate to virtual user dashboard
-          window.location.href = '/virtual-dashboard';
+          // Now that virtual users get proper authentication tokens, 
+          // we don't need special virtualUserData storage
+          // The user data is already stored by AuthService
+          
+          // For backward compatibility, still store virtual user data
+          const storedData = localStorage.getItem('virtualUserData');
+          
+          if (storedData) {
+            const virtualUserData = JSON.parse(storedData);
+            // Update with additional information after successful OTP verification
+            const updatedVirtualUserData = {
+              ...virtualUserData,
+              email: virtualUserEmail,
+              isAuthenticated: true,
+              loginTime: new Date().toISOString(),
+              user: result.user, // Add the authenticated user data
+              token: result.token // Add the token for reference
+            };
+            localStorage.setItem('virtualUserData', JSON.stringify(updatedVirtualUserData));
+          }
+          
+          // Use React Router navigation instead of window.location.href
+          navigate('/virtual-dashboard');
         } else {
           setErrors({ otp: result.message || 'Invalid verification code. Please try again.' });
         }

@@ -21,8 +21,23 @@ public class CoursesController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<CourseDto>>> GetCourses()
     {
-        var courses = await _courseService.GetAllCoursesAsync();
-        return Ok(courses);
+        try
+        {
+            Console.WriteLine("GetCourses endpoint called");
+            var courses = await _courseService.GetAllCoursesAsync();
+            Console.WriteLine($"Found {courses?.Count()} courses");
+            return Ok(courses);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in GetCourses: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
+            }
+            return StatusCode(500, new { message = ex.Message });
+        }
     }
 
     [HttpGet("public")]

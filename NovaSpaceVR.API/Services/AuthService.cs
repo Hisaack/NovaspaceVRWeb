@@ -204,22 +204,42 @@ public class AuthService : IAuthService
         };
     }
 
-    public async Task<bool> VerifyVirtualUserOtpAsync(VerifyVirtualUserOtpDto verifyOtpDto)
+    public async Task<AuthResponseDto> VerifyVirtualUserOtpAsync(VerifyVirtualUserOtpDto verifyOtpDto)
     {
         var isValid = await _otpService.ValidateOtpAsync(verifyOtpDto.Email, verifyOtpDto.Code, "virtual-user");
         if (!isValid)
         {
-            return false;
+            return new AuthResponseDto { Success = false, Message = "Invalid verification code" };
         }
 
         // Update last login
         var virtualUser = await _virtualUserService.GetByEmailAsync(verifyOtpDto.Email);
-        if (virtualUser != null)
+        if (virtualUser == null)
         {
-            await _virtualUserService.UpdateLastLoginAsync(virtualUser.Id);
+            return new AuthResponseDto { Success = false, Message = "Virtual user not found" };
         }
 
-        return true;
+        await _virtualUserService.UpdateLastLoginAsync(virtualUser.Id);
+
+        // Generate JWT token for virtual user
+        var roles = new List<string> { "VirtualUser" };
+        var token = await GenerateJwtTokenAsync(virtualUser.Id.ToString(), virtualUser.Email, roles);
+
+        return new AuthResponseDto
+        {
+            Success = true,
+            Message = "Virtual user verified successfully",
+            Token = token,
+            User = new UserDto
+            {
+                Id = virtualUser.Id.ToString(),
+                Email = virtualUser.Email,
+                FirstName = virtualUser.Name?.Split(' ').FirstOrDefault() ?? "Virtual",
+                LastName = virtualUser.Name?.Split(' ').LastOrDefault() ?? "User",
+                Role = "VirtualUser",
+                OrganizationName = virtualUser.OrganizationName ?? ""
+            }
+        };
     }
 
     public async Task<string> GenerateJwtTokenAsync(string userId, string email, IList<string> roles)

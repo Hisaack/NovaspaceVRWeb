@@ -94,16 +94,16 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("verify-virtual-user-otp")]
-    public async Task<ActionResult> VerifyVirtualUserOtp([FromBody] VerifyVirtualUserOtpDto verifyOtpDto)
+    public async Task<ActionResult<AuthResponseDto>> VerifyVirtualUserOtp([FromBody] VerifyVirtualUserOtpDto verifyOtpDto)
     {
         var result = await _authService.VerifyVirtualUserOtpAsync(verifyOtpDto);
         
-        if (!result)
+        if (!result.Success)
         {
-            return BadRequest(new { message = "Invalid verification code" });
+            return BadRequest(result);
         }
 
-        return Ok(new { message = "Virtual user verified successfully" });
+        return Ok(result);
     }
 
     [HttpPost("validate-token")]

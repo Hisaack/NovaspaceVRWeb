@@ -76,6 +76,20 @@ const Admin: React.FC = () => {
   useEffect(() => {
     const loadAllData = async () => {
       try {
+        // Check if user is authenticated
+        if (!AuthService.isAuthenticated()) {
+          console.error('User not authenticated');
+          window.location.href = '/login';
+          return;
+        }
+
+        // Check if user is admin
+        if (!AuthService.isAdmin()) {
+          console.error('User is not an admin');
+          window.location.href = '/dashboard';
+          return;
+        }
+
         setLoading(true);
         
         // Load all data in parallel
@@ -93,19 +107,23 @@ const Admin: React.FC = () => {
           ApiService.getDashboardMetrics() // Admin can see all metrics
         ]);
         
-        setCourses(coursesData);
-        setAccounts(accountsData);
-        setTrainingData(trainingResponse);
-        setGraduatedUsers(graduatedResponse);
-        setDashboardMetrics(metricsData);
+        setCourses(coursesData as any[]);
+        setAccounts(accountsData as any[]);
+        setTrainingData(trainingResponse as any[]);
+        setGraduatedUsers(graduatedResponse as any[]);
+        setDashboardMetrics(metricsData as any);
         
         // Select first specific organization
-        const firstAccount = accountsData.find((account: any) => account.id);
+        const firstAccount = (accountsData as any[]).find((account: any) => account.id);
         if (firstAccount) {
           setSelectedOrganization(firstAccount.id);
         }
       } catch (error) {
         console.error('Failed to load admin data:', error);
+        // If there's an auth error, redirect to login
+        if (error instanceof Error && error.message === 'Unauthorized') {
+          window.location.href = '/login';
+        }
       } finally {
         setLoading(false);
       }

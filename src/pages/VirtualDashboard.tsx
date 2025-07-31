@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { LogOut, User, BookOpen, GraduationCap, Activity, Clock, Award, TrendingUp } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { generateCertificate, getCourseNameById } from '../utils/certificateGenerator';
+import ApiService from '../services/ApiService';
+import AuthService from '../services/AuthService';
 
 const VirtualDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
   const [showStepsModal, setShowStepsModal] = useState(false);
   const [selectedTraining, setSelectedTraining] = useState<any>(null);
@@ -14,110 +18,156 @@ const VirtualDashboard: React.FC = () => {
 
   // Load virtual user data from localStorage and populate dashboard
   React.useEffect(() => {
-    const storedUserData = localStorage.getItem('virtualUserData');
-    if (!storedUserData) {
-      // Redirect to login if no user data found
-      window.location.href = '/login';
+    // First, check if virtual user is authenticated
+    if (!AuthService.isVirtualUserAuthenticated()) {
+      console.log('Virtual user not authenticated, redirecting to login');
+      navigate('/login');
       return;
     }
 
-    try {
-      const userData = JSON.parse(storedUserData);
+    const loadUserData = async () => {
+      const storedUserData = localStorage.getItem('virtualUserData');
+      let userData = null;
       
-      // Validate required fields
-      if (!userData.userCode || !userData.organizationName) {
-        throw new Error('Invalid user data');
+      // If we have stored data, try to parse it
+      if (storedUserData) {
+        try {
+          userData = JSON.parse(storedUserData);
+          console.log('Found stored virtual user data:', userData);
+        } catch (error) {
+          console.error('Error parsing virtual user data:', error);
+          userData = null;
+        }
+      } else {
+        console.log('No stored user data found, showing dashboard with empty data');
       }
-    
-      // Set virtual user data
-      setVirtualUser({
-        name: userData.name || 'Virtual User',
-        userCode: userData.userCode,
-        email: userData.email,
-        organization: userData.organizationName,
-        stage: userData.stage || 'Beginner',
-        joinDate: userData.dateAdded || new Date().toISOString().split('T')[0],
-        lastLogin: '2024-01-22 14:30', // This would come from actual login tracking
-        totalTrainingTime: '12h 30m', // This would be calculated from training data
-        averageScore: 85, // This would be calculated from training data
-        coursesCompleted: 3, // This would be calculated from completed courses
-        coursesInProgress: 2 // This would be calculated from enrollments
-      });
-    } catch (error) {
-      console.error('Error parsing virtual user data:', error);
-      window.location.href = '/login';
-      return;
-    }
 
-    // Filter training data for this specific user
-    const allTrainingData = [
-      { 
-        id: 'T001', 
-        name: 'John Smith', 
-        userCode: 'A123', 
-        courseCode: 'P001', 
-        courseName: 'Automotive Engineering',
-        trainedTime: '2h 45m', 
-        elapsedTime: '3h 12m', 
-        accumulatedSample: 85,
-        completionDate: '2024-01-20',
-        status: 'Completed'
-      },
-      { 
-        id: 'T002', 
-        name: 'Jane Smith', 
-        userCode: 'B456', 
-        courseCode: 'P002', 
-        courseName: 'Electrical Engineering',
-        trainedTime: '1h 30m', 
-        elapsedTime: '2h 05m', 
-        accumulatedSample: 92,
-        completionDate: '2024-02-15',
-        status: 'Completed'
-      },
-      { 
-        id: 'T003', 
-        name: 'John Smith', 
-        userCode: 'A123', 
-        courseCode: 'P003', 
-        courseName: 'Mechanical Engineering',
-        trainedTime: '3h 15m', 
-        elapsedTime: '4h 22m', 
-        accumulatedSample: 78,
-        completionDate: 'In Progress',
-        status: 'In Progress'
+      try {
+        // If we have user data, try to fetch specific user data from API
+        let virtualUserData = null;
+        if (userData?.userCode && userData?.organizationName) {
+          console.log(`Looking for virtual user: ${userData.userCode} from ${userData.organizationName}`);
+          virtualUserData = await ApiService.getVirtualUserByCode(userData.organizationName, userData.userCode);
+        }
+        
+        if (!virtualUserData) {
+          console.log('No specific virtual user found in API, using default data');
+          console.log('Available organizations: TechCorp Industries, Global Manufacturing Inc, Innovation Labs, Beta Testing Corp, Future Tech Solutions');
+          console.log('Example user codes: A123 (TechCorp Industries), TC001 (TechCorp Industries)');
+          // Set default virtual user data
+          setVirtualUser({
+            name: userData?.name || 'Virtual User',
+            userCode: userData?.userCode || 'Guest',
+            email: userData?.email || 'guest@example.com',
+            organization: userData?.organizationName || 'Demo Organization',
+            stage: userData?.stage || 'Beginner',
+            joinDate: userData?.dateAdded || new Date().toISOString().split('T')[0],
+            lastLogin: '2024-01-22 14:30',
+            totalTrainingTime: '0h 0m',
+            averageScore: 0,
+            coursesCompleted: 0,
+            coursesInProgress: 0
+          });
+        } else {
+          // Set virtual user data from API
+          console.log('Found virtual user data from API:', virtualUserData);
+          const apiUser = virtualUserData as any; // Type assertion for API response
+          setVirtualUser({
+            name: apiUser.name || 'Virtual User',
+            userCode: apiUser.userCode,
+            email: apiUser.email,
+            organization: apiUser.account?.organizationName || userData?.organizationName || 'Demo Organization',
+            stage: apiUser.stage || 'Beginner',
+            joinDate: apiUser.dateAdded ? new Date(apiUser.dateAdded).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            lastLogin: apiUser.lastLogin || '2024-01-22 14:30',
+            totalTrainingTime: '0h 0m', // Will be calculated from training data
+            averageScore: 0, // Will be calculated from training data
+            coursesCompleted: 0, // Will be calculated from completed courses
+            coursesInProgress: 0 // Will be calculated from enrollments
+          });
+        }
+
+        // Initialize data arrays
+        let userSpecificTraining: any[] = [];
+        let userEnrollments: any[] = [];
+        let userCompletedCourses: any[] = [];
+
+        // Fetch training data for this specific user (or all if no specific user)
+        try {
+          const trainingData = await ApiService.getTrainingData();
+          userSpecificTraining = Array.isArray(trainingData) ? trainingData : [];
+          setUserTrainingData(userSpecificTraining);
+        } catch (error) {
+          console.log('Could not fetch training data for virtual user, using empty data:', error);
+          setUserTrainingData([]);
+        }
+
+        // Fetch enrollments - for virtual users, use my-enrollments endpoint
+        try {
+          const enrollmentResponse = await ApiService.getMyEnrollments();
+          userEnrollments = Array.isArray(enrollmentResponse) ? enrollmentResponse : [];
+          setEnrollments(userEnrollments);
+        } catch (error) {
+          console.log('Could not fetch enrollments for virtual user, using empty data:', error);
+          setEnrollments([]);
+        }
+
+        // Fetch graduated users (completed courses) for this user or empty array
+        try {
+          const graduatedUsers = await ApiService.getGraduatedUsers();
+          userCompletedCourses = Array.isArray(graduatedUsers) ? graduatedUsers : [];
+          setCompletedCourses(userCompletedCourses);
+        } catch (error) {
+          console.log('Could not fetch completed courses for virtual user, using empty data:', error);
+          setCompletedCourses([]);
+        }
+
+        // Calculate metrics from actual data
+        const totalTrainingHours = userSpecificTraining.reduce((total: number, training: any) => {
+          // Parse training time (assuming format like "2h 45m" or just numbers)
+          const timeStr = training.trainedTime || "0h 0m";
+          const hours = parseFloat(timeStr.split('h')[0] || '0');
+          const minutes = parseFloat((timeStr.split('h')[1] || '0m').replace('m', '') || '0');
+          return total + hours + (minutes / 60);
+        }, 0);
+
+        const averageScore = userSpecificTraining.length > 0 ? 
+          userSpecificTraining.reduce((total: number, training: any) => total + (training.accumulatedSample || 0), 0) / userSpecificTraining.length : 0;
+
+        // Update virtual user with calculated metrics
+        if (virtualUserData) {
+          setVirtualUser((prev: any) => ({
+            ...prev,
+            totalTrainingTime: `${Math.floor(totalTrainingHours)}h ${Math.floor((totalTrainingHours % 1) * 60)}m`,
+            averageScore: Math.round(averageScore),
+            coursesCompleted: userCompletedCourses.length,
+            coursesInProgress: userEnrollments.filter((e: any) => e.status !== 'Completed').length
+          }));
+        }
+
+      } catch (error) {
+        console.error('Error fetching user data from API:', error);
+        // Use fallback data - work even without userData
+        setVirtualUser({
+          name: userData?.name || 'Virtual User',
+          userCode: userData?.userCode || 'Guest',
+          email: userData?.email || 'guest@example.com',
+          organization: userData?.organizationName || 'Demo Organization',
+          stage: userData?.stage || 'Beginner',
+          joinDate: userData?.dateAdded || new Date().toISOString().split('T')[0],
+          lastLogin: '2024-01-22 14:30',
+          totalTrainingTime: '0h 0m',
+          averageScore: 0,
+          coursesCompleted: 0,
+          coursesInProgress: 0
+        });
+        setUserTrainingData([]);
+        setEnrollments([]);
+        setCompletedCourses([]);
       }
-    ];
+    };
 
-    // Filter training data for current user
-    const userSpecificTraining = allTrainingData.filter(training => 
-      training.userCode === userData.userCode
-    );
-    setUserTrainingData(userSpecificTraining);
-
-    // Filter enrollments for current user
-    const allEnrollments = [
-      { courseId: 'P001', courseName: 'Automotive Engineering', enrollmentDate: '2024-01-15', status: 'Completed', progress: 100, userCode: 'A123' },
-      { courseId: 'P002', courseName: 'Electrical Engineering', enrollmentDate: '2024-01-20', status: 'In Progress', progress: 75, userCode: 'B456' },
-      { courseId: 'P003', courseName: 'Mechanical Engineering', enrollmentDate: '2024-02-01', status: 'In Progress', progress: 45, userCode: 'A123' }
-    ];
-    
-    const userEnrollments = allEnrollments.filter(enrollment => 
-      enrollment.userCode === userData.userCode
-    );
-    setEnrollments(userEnrollments);
-
-    // Filter completed courses for current user
-    const allCompletedCourses = [
-      { courseId: 'P001', courseName: 'Automotive Engineering', completionDate: '2024-02-15', grade: 'A', certificateId: 'CERT001', userCode: 'A123' },
-      { courseId: 'P004', courseName: 'Plumbing Course', completionDate: '2024-03-01', grade: 'B+', certificateId: 'CERT002', userCode: 'B456' },
-      { courseId: 'P005', courseName: 'Safety Training', completionDate: '2024-03-10', grade: 'A-', certificateId: 'CERT003', userCode: 'A123' }
-    ];
-    
-    const userCompletedCourses = allCompletedCourses.filter(course => 
-      course.userCode === userData.userCode
-    );
-    setCompletedCourses(userCompletedCourses);
+    loadUserData();
   }, []);
 
   // Return loading state if virtual user data is not loaded yet
@@ -268,16 +318,10 @@ const VirtualDashboard: React.FC = () => {
     { name: 'Not Started', value: 1, color: '#6b7280' }
   ];
 
-  const trainingSteps = [
-    { stepNumber: 1, courseName: 'Automotive Engineering', elapsedTime: '15 min', expectedTime: '12 min', errorRate: '25%', successRate: '75%' },
-    { stepNumber: 2, courseName: 'Automotive Engineering', elapsedTime: '18 min', expectedTime: '15 min', errorRate: '20%', successRate: '80%' },
-    { stepNumber: 3, courseName: 'Electrical Engineering', elapsedTime: '22 min', expectedTime: '20 min', errorRate: '15%', successRate: '85%' }
-  ];
-
   const handleSignOut = () => {
-    // Clear virtual user data from localStorage
-    localStorage.removeItem('virtualUserData');
-    window.location.href = '/login';
+    // Use the secure virtual user logout method
+    AuthService.logoutVirtualUser();
+    navigate('/login');
   };
 
   const handleViewSteps = (training: any) => {

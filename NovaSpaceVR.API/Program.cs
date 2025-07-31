@@ -63,6 +63,9 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+    options.AddPolicy("UserOrAdmin", policy => policy.RequireRole("User", "Admin"));
+    options.AddPolicy("VirtualUserOrAdmin", policy => policy.RequireRole("VirtualUser", "Admin"));
+    options.AddPolicy("AllRoles", policy => policy.RequireRole("User", "Admin", "VirtualUser"));
 });
 
 // Services

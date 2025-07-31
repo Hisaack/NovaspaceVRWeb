@@ -21,12 +21,31 @@ public class CourseService : ICourseService
 
     public async Task<IEnumerable<CourseDto>> GetAllCoursesAsync()
     {
-        var courses = await _context.Courses
-            .Include(c => c.Modules)
-            .Include(c => c.Enrollments)
-            .ToListAsync();
+        try
+        {
+            Console.WriteLine("CourseService.GetAllCoursesAsync called");
+            var courses = await _context.Courses
+                .Include(c => c.Modules)
+                .Include(c => c.Enrollments)
+                .ToListAsync();
 
-        return _mapper.Map<IEnumerable<CourseDto>>(courses);
+            Console.WriteLine($"Retrieved {courses.Count} courses from database");
+            
+            var result = _mapper.Map<IEnumerable<CourseDto>>(courses);
+            Console.WriteLine($"Mapped {result?.Count()} course DTOs");
+            
+            return result ?? new List<CourseDto>();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in GetAllCoursesAsync: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
+            }
+            throw;
+        }
     }
 
     public async Task<IEnumerable<CourseDto>> GetPublicCoursesAsync()

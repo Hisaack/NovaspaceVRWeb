@@ -10,7 +10,7 @@ public interface IAuthService
     Task<bool> ForgotPasswordAsync(ForgotPasswordDto forgotPasswordDto);
     Task<bool> ResetPasswordAsync(ResetPasswordDto resetPasswordDto);
     Task<AuthResponseDto> VirtualUserLoginAsync(VirtualUserLoginDto virtualUserLoginDto);
-    Task<bool> VerifyVirtualUserOtpAsync(VerifyVirtualUserOtpDto verifyOtpDto);
+    Task<AuthResponseDto> VerifyVirtualUserOtpAsync(VerifyVirtualUserOtpDto verifyOtpDto);
     Task<string> GenerateJwtTokenAsync(string userId, string email, IList<string> roles);
     Task<bool> ValidateTokenAsync(string token);
 }
